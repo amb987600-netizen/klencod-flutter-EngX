@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
+import '../data/db.dart';
 
 /// إعدادات التطبيق (اللغة، الوضع، الاسم). بتتحفظ على الجهاز.
 class AppState extends ChangeNotifier {
   AppState._();
   static final AppState i = AppState._();
 
-  SharedPreferences? _p;
+  bool _ready = false;
   String lang = 'ar';
   ThemeMode themeMode = ThemeMode.system;
   String userName = '';
@@ -17,13 +18,15 @@ class AppState extends ChangeNotifier {
 
   bool get isAr => lang == 'ar';
 
+  /// الإعدادات بتتحفظ في قاعدة البيانات المحلية نفسها (جدول meta).
   Future<void> load() async {
-    final p = _p = await SharedPreferences.getInstance();
-    lang = p.getString('lang') ?? 'ar';
-    userName = p.getString('userName') ?? '';
-    onboarded = p.getBool('onboarded') ?? false;
-    syncEnabled = p.getBool('syncEnabled') ?? false;
-    switch (p.getString('theme')) {
+    final rows = await Db.i.raw.query('meta');
+    final m = {for (final r in rows) '${r['key']}': r['value'] as String?};
+    lang = m['pref_lang'] ?? 'ar';
+    userName = m['pref_userName'] ?? '';
+    onboarded = m['pref_onboarded'] == '1';
+    syncEnabled = m['pref_syncEnabled'] == '1';
+    switch (m['pref_theme']) {
       case 'light':
         themeMode = ThemeMode.light;
         break;
@@ -33,44 +36,50 @@ class AppState extends ChangeNotifier {
       default:
         themeMode = ThemeMode.system;
     }
+    _ready = true;
+  }
+
+  Future<void> _put(String k, String v) async {
+    if (!_ready) return;
+    await Db.i.raw.insert('meta', {'key': 'pref_$k', 'value': v}, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> setLang(String v) async {
     lang = v;
-    await _p?.setString('lang', v);
     notifyListeners();
+    await _put('lang', v);
   }
 
   Future<void> setTheme(ThemeMode m) async {
     themeMode = m;
-    await _p?.setString('theme', m == ThemeMode.light ? 'light' : m == ThemeMode.dark ? 'dark' : 'system');
     notifyListeners();
+    await _put('theme', m == ThemeMode.light ? 'light' : m == ThemeMode.dark ? 'dark' : 'system');
   }
 
   Future<void> setUserName(String v) async {
     userName = v;
-    await _p?.setString('userName', v);
     notifyListeners();
+    await _put('userName', v);
   }
 
   Future<void> completeOnboarding(String name) async {
     userName = name;
     onboarded = true;
-    await _p?.setString('userName', name);
-    await _p?.setBool('onboarded', true);
+    await _put('userName', name);
+    await _put('onboarded', '1');
     notifyListeners();
   }
 
   Future<void> signOut() async {
     onboarded = false;
-    await _p?.setBool('onboarded', false);
+    await _put('onboarded', '0');
     notifyListeners();
   }
 
   Future<void> setSync(bool v) async {
     syncEnabled = v;
-    await _p?.setBool('syncEnabled', v);
     notifyListeners();
+    await _put('syncEnabled', v ? '1' : '0');
   }
 }
 

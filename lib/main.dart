@@ -24,8 +24,8 @@ class _BootAppState extends State<BootApp> {
   late Future<void> _init = _start();
 
   Future<void> _start() async {
-    await AppState.i.load().timeout(const Duration(seconds: 15));
     await Db.i.open().timeout(const Duration(seconds: 20));
+    await AppState.i.load().timeout(const Duration(seconds: 15));
   }
 
   @override
