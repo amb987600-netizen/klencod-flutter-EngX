@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
+import '../data/db.dart';
 import '../data/repo.dart';
 import '../widgets/common.dart';
 import 'device_detail.dart';
